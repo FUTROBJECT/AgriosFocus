@@ -1,0 +1,112 @@
+{
+    "@context": [
+        "https://geojson.org/geojson-ld/geojson-context.jsonld",
+        {
+            "@version": "1.1",
+            "wx": "https://api.weather.gov/ontology#",
+            "s": "https://schema.org/",
+            "geo": "http://www.opengis.net/ont/geosparql#",
+            "unit": "http://codes.wmo.int/common/unit/",
+            "@vocab": "https://api.weather.gov/ontology#",
+            "geometry": {
+                "@id": "s:GeoCoordinates",
+                "@type": "geo:wktLiteral"
+            },
+            "city": "s:addressLocality",
+            "state": "s:addressRegion",
+            "distance": {
+                "@id": "s:Distance",
+                "@type": "s:QuantitativeValue"
+            },
+            "bearing": {
+                "@type": "s:QuantitativeValue"
+            },
+            "value": {
+                "@id": "s:value"
+            },
+            "unitCode": {
+                "@id": "s:unitCode",
+                "@type": "@id"
+            },
+            "forecastOffice": {
+                "@type": "@id"
+            },
+            "forecastGridData": {
+                "@type": "@id"
+            },
+            "publicZone": {
+                "@type": "@id"
+            },
+            "county": {
+                "@type": "@id"
+            }
+        }
+    ],
+    "id": "https://api.weather.gov/points/42.03,-93.65",
+    "type": "Feature",
+    "geometry": {
+        "type": "Point",
+        "coordinates": [
+            -93.65,
+            42.03
+        ]
+    },
+    "properties": {
+        "@id": "https://api.weather.gov/points/42.03,-93.65",
+        "@type": "wx:Point",
+        "cwa": "DMX",
+        "type": "land",
+        "forecastOffice": "https://api.weather.gov/offices/DMX",
+        "gridId": "DMX",
+        "gridX": 72,
+        "gridY": 69,
+        "forecast": "https://api.weather.gov/gridpoints/DMX/72,69/forecast",
+        "forecastHourly": "https://api.weather.gov/gridpoints/DMX/72,69/forecast/hourly",
+        "forecastGridData": "https://api.weather.gov/gridpoints/DMX/72,69",
+        "observationStations": "https://api.weather.gov/gridpoints/DMX/72,69/stations",
+        "relativeLocation": {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    -93.6212645,
+                    42.0263267
+                ]
+            },
+            "properties": {
+                "city": "Ames",
+                "state": "IA",
+                "distance": {
+                    "unitCode": "wmoUnit:m",
+                    "value": 0
+                },
+                "bearing": {
+                    "unitCode": "wmoUnit:degree_(angle)",
+                    "value": 0
+                }
+            }
+        },
+        "forecastZone": "https://api.weather.gov/zones/forecast/IAZ048",
+        "county": "https://api.weather.gov/zones/county/IAC169",
+        "fireWeatherZone": "https://api.weather.gov/zones/fire/IAZ048",
+        "timeZone": "America/Chicago",
+        "radarStation": "KDMX",
+        "astronomicalData": {
+            "sunrise": "2026-07-04T05:42:59-05:00",
+            "sunset": "2026-07-04T20:55:13-05:00",
+            "transit": "2026-07-04T13:19:06-05:00",
+            "civilTwilightBegin": "2026-07-04T05:10:33-05:00",
+            "civilTwilightEnd": "2026-07-04T21:27:39-05:00",
+            "nauticalTwilightBegin": "2026-07-04T04:26:48-05:00",
+            "nauticalTwilightEnd": "2026-07-04T22:11:24-05:00",
+            "astronomicalTwilightBegin": "2026-07-04T03:34:27-05:00",
+            "astronomicalTwilightEnd": "2026-07-04T23:03:45-05:00"
+        },
+        "nwr": {
+            "transmitter": "WXL57",
+            "sameCode": "019169",
+            "areaBroadcast": "https://api.weather.gov/radio/WXL57/broadcast",
+            "pointBroadcast": "https://api.weather.gov/points/42.03,-93.65/radio"
+        }
+    }
+}

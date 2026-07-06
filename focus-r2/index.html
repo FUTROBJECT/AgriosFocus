@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AGRIOS Focus — Allerton, IA · R2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700;9..40,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="focus-r2.css?v=33">
+</head>
+<body>
+
+<!-- ===== Persistent light map hero (never scrolls away) ===== -->
+<main id="stage">
+  <div id="map-popover" class="map-popover" role="dialog" aria-label="Held-open flag summary" hidden>
+    <p class="map-popover-title"></p>
+    <p class="map-popover-brief"></p>
+    <button class="map-popover-go">Read why ↓</button>
+  </div>
+  <div id="focus-map" class="map-hero" aria-label="Field map"></div>
+
+  <!-- Locked pill group (top-left): field/date label + provenance chip as one
+       instrument — where/when on the left, what-it's-read-from on the right.
+       The left pill overlaps the right (R2 double-pill), provenance stays a
+       button opening the sources dialog. -->
+  <div class="pill-group" aria-label="Field, date and data sources">
+    <div class="pill-row">
+      <button id="field-pill" class="field-pill" aria-haspopup="dialog" aria-label="Field and date — open field, date and location dialog">
+        <span class="field-pill-glyph" aria-hidden="true">◎</span>
+        <span class="field-pill-text" id="field-pill-text"></span>
+      </button>
+      <button id="prov-chip" class="prov-chip" aria-haspopup="dialog">
+        <span class="prov-dot"></span><span class="prov-text">public data<span class="prov-text-long"> · USGS/USDA/NWS/Census</span></span>
+      </button>
+      <!-- Field chip: toggles the active field between the baked Allerton
+           reading and the last live read. Hidden until a live read exists. -->
+      <button id="field-chip" class="field-chip" hidden aria-label="Switch active field">
+        <span class="field-chip-text" id="field-chip-text">Allerton, IA</span>
+        <span class="field-chip-caret" aria-hidden="true">▾</span>
+      </button>
+    </div>
+    <!-- Row 2: live view-bounds readout — the ACTUAL visible map bounds in
+         decimal degrees, recomputed on every applyView (pan/zoom/wheel/drag/
+         zone focus) by inverting the current view transform + slice math.
+         Mobile (≤560px) collapses to a center-only readout that opens the
+         Field & date dialog on tap (full bounds live inside it). -->
+    <button id="view-bounds-pill" class="view-bounds-pill" aria-label="Live map view bounds — open field and date dialog for full bounds" aria-haspopup="dialog">
+      <span class="view-bounds-label" aria-hidden="true">VIEW</span>
+      <span class="view-bounds-text" id="view-bounds-text">
+        <span class="vb-full" id="vb-full"></span><span class="vb-center" id="vb-center"></span>
+      </span>
+    </button>
+  </div>
+
+  <!-- Floating dark utility rail (left) -->
+  <nav id="rail-nav" class="rail-nav" aria-label="AGRIOS utilities">
+    <div class="logo-bubble" aria-hidden="true">A</div>
+    <div class="rail-nav-group">
+      <button id="rail-provenance" class="rail-nav-btn" aria-label="Provenance — sources and limits">
+        <span class="rail-glyph">◇</span>
+      </button>
+      <button id="rail-theme" class="rail-nav-btn" aria-label="Light / dark" aria-pressed="false" title="Light / dark">
+        <span class="rail-glyph" aria-hidden="true">◐</span>
+      </button>
+      <button id="rail-about" class="rail-nav-btn" aria-label="About AGRIOS Focus">
+        <span class="rail-glyph">ⓘ</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Floating white circular controls (right): zoom ± / recenter / layers -->
+  <div class="map-controls" role="group" aria-label="Map controls">
+    <button id="ctl-zoom-in"  class="ctl" aria-label="Zoom to active zone">+</button>
+    <button id="ctl-zoom-out" class="ctl" aria-label="Zoom out to whole field">−</button>
+    <button id="ctl-recenter" class="ctl" aria-label="Recenter on whole field">⤢</button>
+    <button id="ctl-layers"   class="ctl" aria-label="Layers" aria-expanded="false">≣</button>
+  </div>
+
+  <!-- Layers panel (charger-filter-pattern rows) -->
+  <aside id="layers-panel" class="layers-panel" aria-hidden="true" aria-label="Map layers">
+    <p class="layers-title">Layers</p>
+    <button class="layer-row layer-row--on" data-layer="terrain" aria-pressed="true">
+      <span class="layer-name">Terrain tint</span><span class="layer-sub">hypsometric, low → high</span>
+    </button>
+    <button class="layer-row layer-row--on" data-layer="contours" aria-pressed="true">
+      <span class="layer-name">Contours</span><span class="layer-sub">USGS 10 m · 5 ft / 25 ft index</span>
+    </button>
+    <button class="layer-row layer-row--on" data-layer="elevation-labels" aria-pressed="true">
+      <span class="layer-name">Elevation labels</span><span class="layer-sub">index-contour ft values</span>
+    </button>
+    <button class="layer-row layer-row--on" data-layer="zones" aria-pressed="true">
+      <span class="layer-name">Field zones</span><span class="layer-sub">SSURGO 1:24,000 · dashed ±40 m</span>
+    </button>
+    <button class="layer-row layer-row--on" data-layer="refusal" aria-pressed="true">
+      <span class="layer-name">Refusal band</span><span class="layer-sub">east-low, held open</span>
+    </button>
+    <button class="layer-row layer-row--on" data-layer="structures" aria-pressed="true">
+      <span class="layer-name">Roads, water &amp; buildings (Census/NHD/FEMA)</span><span class="layer-sub">roads solid; intermittent streams dashed; ditches dash-dot; perennial ponds solid fill; building footprints faint — context-grade, footprints not survey</span>
+    </button>
+    <button class="layer-row" data-layer="plots" aria-pressed="false">
+      <span class="layer-name">Planting plots <span class="layer-draft">draft</span></span>
+      <span class="layer-sub">speculative — derived from public terrain only; illustrative. Connect planter / yield / seed data to make this layer real.</span>
+    </button>
+    <!-- LIVE (computed) reads swap the Allerton-only rows above for these two.
+         Shown only on .is-live (see CSS); default ON. -->
+    <button class="layer-row layer-row--on layer-row--live" data-layer="computed-zones" aria-pressed="true">
+      <span class="layer-name">Computed zones</span><span class="layer-sub">compound zones (drainage class × elevation band) · dotted-dash outlines</span>
+    </button>
+    <button class="layer-row layer-row--on layer-row--live" data-layer="held-open-flags" aria-pressed="true">
+      <span class="layer-name">Held-open flags</span><span class="layer-sub">where the public data disagree — amber hatch, ⟨?⟩</span>
+    </button>
+    <!-- Surround context terrain (spec-surround-context-v1): shown only when a
+         live read carried the failable surround ring (body.has-surround). -->
+    <button class="layer-row layer-row--on layer-row--surround" data-layer="surround-terrain" aria-pressed="true">
+      <span class="layer-name">Surround terrain</span><span class="layer-sub">context beyond the read core · coarse (3× core spacing) · context, not survey</span>
+    </button>
+  </aside>
+
+  <!-- Plots footnote: visible only when the speculative plots layer is on -->
+  <p id="plots-footnote" class="plots-footnote" hidden>Planting plots are <strong>speculative</strong> — derived from public terrain only, illustrative. Connect planter / yield / seed data to make this layer real.</p>
+
+  <!-- ===== Desktop: scrolling right rail ===== -->
+  <aside id="rail" class="rail" aria-label="Field narrative">
+    <header class="rail-head">
+      <p class="eyebrow">AGRIOS Focus · <span id="field-date"></span></p>
+      <h1 id="field-name"></h1>
+      <p class="field-sub" id="field-sub"></p>
+      <p class="field-honesty" id="field-honesty"></p>
+      <p class="rail-lead">Where is my money at risk today, and why? Scroll the field, west ridge to east low — the map follows.</p>
+    </header>
+    <div id="rail-cards" class="cards"></div>
+    <footer class="rail-foot">
+      <p>Priority tells you <em>where</em>. Confidence tells you whether to <em>act</em> or <em>look</em>. The map never speaks past the sensors.</p>
+    </footer>
+  </aside>
+</main>
+
+<!-- ===== Dark bottom dock: zone quick-nav chips (mobile hosts the sheet handle) ===== -->
+<nav id="dock" class="dock" aria-label="Zone quick navigation">
+  <!-- live reads have no zone reading — chips hide, this label shows (see .is-live rules) -->
+  <span class="dock-live-label" aria-hidden="true">live read · facts only — no zone reading</span>
+  <button class="dock-chip" data-zone="sw-s-shoulders"><span class="dock-chip-label">SW–S shoulders</span></button>
+  <button class="dock-chip" data-zone="central-grade"><span class="dock-chip-label">Central grade</span></button>
+  <button class="dock-chip" data-zone="nw-flat"><span class="dock-chip-label">NW flat</span></button>
+  <button class="dock-chip" data-zone="east-low-compound"><span class="dock-chip-label">East low</span></button>
+</nav>
+
+<!-- ===== Mobile: draggable bottom sheet ===== -->
+<section id="sheet" class="sheet" data-state="peek" aria-label="Field narrative sheet">
+  <div id="sheet-handle" class="sheet-handle" role="button" tabindex="0" aria-label="Drag to expand the field narrative">
+    <span class="grip"></span>
+    <div class="sheet-peek">
+      <span class="peek-label">Active zone</span>
+      <span id="sheet-peek-zone" class="peek-zone"></span>
+    </div>
+  </div>
+  <div id="sheet-scroll" class="sheet-scroll">
+    <header class="sheet-head">
+      <p class="eyebrow">AGRIOS Focus · <span class="field-date"></span></p>
+      <h1 class="field-name"></h1>
+      <p class="field-sub-m"></p>
+      <p class="rail-lead">Scroll the field, west ridge to east low — the map behind follows.</p>
+    </header>
+    <div id="sheet-cards" class="cards"></div>
+    <footer class="rail-foot">
+      <p>Priority tells you <em>where</em>. Confidence tells you whether to <em>act</em> or <em>look</em>.</p>
+    </footer>
+  </div>
+</section>
+
+<!-- ===== Dialogs ===== -->
+<div id="provenance-dialog" class="dialog" role="dialog" aria-modal="true" aria-labelledby="prov-title" aria-hidden="true">
+  <div class="dialog-card">
+    <button class="dialog-close" aria-label="Close">×</button>
+    <h2 id="prov-title">Provenance</h2>
+    <p class="dialog-lead">Every reading on this map comes from public data, fetched <strong id="prov-date"></strong>. Each source carries its own real resolution limit — the map is drawn no crisper than these support.</p>
+    <ul id="prov-sources" class="prov-sources"></ul>
+    <h3>Not connected</h3>
+    <ul id="prov-unavailable" class="prov-unavailable"></ul>
+    <p class="dialog-note"><strong>On-farm layer: not connected.</strong> AGRIOS Focus reads only public data here. The layers above need field sensors, the farmer's own records, or a soil pit — they are shown as unavailable, never faked.</p>
+  </div>
+</div>
+
+<div id="about-dialog" class="dialog" role="dialog" aria-modal="true" aria-labelledby="about-title" aria-hidden="true">
+  <div class="dialog-card">
+    <button class="dialog-close" aria-label="Close">×</button>
+    <h2 id="about-title">About AGRIOS Focus</h2>
+    <p><strong>AGRIOS is not a smarter view of the farm; it is an honest one</strong> — an instrument that always says where it stands, refuses to speak past its reach, and asks for the farmer's eyes at the edge of what it can see.</p>
+    <p>Enter coordinates and Focus reads that ground live from public sources — USGS elevation, USDA soils, NWS weather, Census roads, USGS hydrography — then runs the <strong>boundary loop</strong>: find the edges, see where they meet, rank what matters now by rules it prints for you. Where the sources genuinely disagree, it draws a ⟨?⟩ and holds the question open. That refusal is the product working, not failing.</p>
+    <p>Every claim carries its instrument, its resolution limits, and its date. Name a field, state its bounds (your claim of record, drawn solid), and it becomes a place you can return to. The muted "not connected" tiles are honest empty sockets — soil probes, yield monitors, array telemetry light them up.</p>
+    <p>Two kinds of reading, kept visibly distinct: the <strong>computed reading</strong> (geometry and printed rules, data-support counted, never invented confidence) and the <strong>analyst layer</strong> — a worked interpretation like the Allerton, Iowa example in the field switcher.</p>
+    <p class="dialog-note">AGRIOS Focus · a FutureObjects instrument · public data only, read live · vanilla HTML/JS/SVG, no backend · <a href="https://futureobjects.substack.com" target="_blank" rel="noopener">futureobjects.substack.com</a></p>
+  </div>
+</div>
+
+<!-- Field & date — honest entry. Opens from the FIELD pill (row 1 left).
+     Three sections: current field (stated + live view bounds), date (two real
+     NWS days + honest note for any other), location (read this field, or the
+     honest capability card for anywhere else). No network calls anywhere. -->
+<div id="field-dialog" class="dialog" role="dialog" aria-modal="true" aria-labelledby="field-title" aria-hidden="true">
+  <div class="dialog-card">
+    <button class="dialog-close" aria-label="Close">×</button>
+    <h2 id="field-title">Field &amp; date</h2>
+
+    <!-- 1 · CURRENT FIELD -->
+    <h3>Current field</h3>
+    <ul class="field-facts">
+      <li><span class="ff-k">Name</span><span class="ff-v" id="fd-name"></span></li>
+      <li><span class="ff-k">Coordinates</span><span class="ff-v" id="fd-coords"></span></li>
+      <li><span class="ff-k">Stated bounds</span><span class="ff-v" id="fd-stated"></span></li>
+      <li><span class="ff-k">Acreage</span><span class="ff-v" id="fd-acreage"></span></li>
+      <li><span class="ff-k">Current view</span><span class="ff-v" id="fd-view"></span></li>
+    </ul>
+    <p class="field-facts-note">Stated bounds are the field's fixed parcel (USGS/USDA extent). Current view is live — it tracks whatever you pan or zoom to on the map.</p>
+
+    <!-- 2 · DATE -->
+    <h3>Date</h3>
+    <div class="date-chips" role="group" aria-label="Select a held forecast date">
+      <button class="date-chip" id="date-chip-jul3" data-date="2026-07-03" aria-pressed="true"></button>
+      <button class="date-chip" id="date-chip-jul4" data-date="2026-07-04" aria-pressed="false"></button>
+    </div>
+    <div class="date-day-facts" id="date-day-facts" hidden></div>
+    <label class="date-input-row">
+      <span class="date-input-label">Any other date</span>
+      <input type="date" id="date-input" class="date-input" min="2020-01-01" max="2030-12-31">
+    </label>
+    <p class="date-window-cap" id="date-window-cap" hidden></p>
+    <p class="date-missing" id="date-missing" hidden></p>
+
+    <!-- 3 · LOCATION -->
+    <h3>Location</h3>
+    <div class="loc-inputs">
+      <label class="loc-field">
+        <span class="loc-label">Latitude</span>
+        <input type="text" id="loc-lat" class="loc-input" inputmode="decimal" autocomplete="off">
+      </label>
+      <label class="loc-field">
+        <span class="loc-label">Longitude</span>
+        <input type="text" id="loc-lon" class="loc-input" inputmode="decimal" autocomplete="off">
+      </label>
+    </div>
+    <p class="loc-msg" id="loc-msg" hidden></p>
+    <button id="loc-read" class="loc-read-btn">Read this location</button>
+
+    <!-- Live-read progress panel — R2 rows per source (live counts, spinner →
+         check/cross), Cancel, and (on failure) a Retry offer. Built by JS. -->
+    <div class="live-progress" id="live-progress" hidden aria-live="polite"></div>
+
+    <!-- Honest capability card — shown for ANY off-field coordinates. Not an
+         error style: an informational --surface-warm card listing the 5 real
+         sources a live AGRIOS would fetch, and the honest pipeline line. -->
+    <div class="capability-card" id="capability-card" hidden>
+      <p class="cap-lead" id="cap-lead"></p>
+      <ul class="cap-sources">
+        <li><span class="cap-src">USGS 3DEP EPQS</span><span class="cap-src-line">elevation grid</span></li>
+        <li><span class="cap-src">USDA SSURGO</span><span class="cap-src-line">soils</span></li>
+        <li><span class="cap-src">NWS gridpoint</span><span class="cap-src-line">forecast</span></li>
+        <li><span class="cap-src">Census TIGER</span><span class="cap-src-line">roads</span></li>
+        <li><span class="cap-src">USGS NHD</span><span class="cap-src-line">flowlines &amp; waterbodies</span></li>
+      </ul>
+      <p class="cap-closing">The fetch pipeline exists (agrios-boundary-scout); it needs a live session, not a static file.</p>
+      <p class="cap-network" id="cap-network" hidden></p>
+    </div>
+
+    <!-- 4 · SAVE THIS FIELD (spec-saved-fields-v1 §4) — visible only when a
+         LIVE read is active (body.is-live; JS toggles #save-field-section).
+         Name it, bound it, annotate it, save it. Stated bounds are the FARMER'S
+         claim of record → rendered exactly like Allerton's parcel (wash + solid
+         boundary + parcel framing). No drawing tools in v1: frame the field by
+         pan/zoom then "Use current view as bounds", or type N/S/E/W directly. -->
+    <section id="save-field-section" class="save-field" hidden aria-label="Save this field">
+      <h3 id="save-field-heading">Save this field</h3>
+      <p class="save-field-hint" id="save-field-hint" hidden>Run a live read first — enter coordinates above and press “Read this location.” A read of your own ground can then be named, given stated bounds, and saved here. (Allerton is the baked worked example — it stays as-is.)</p>
+      <p class="save-field-sub" id="save-field-sub">Name this live read so it becomes a place you know — then, if you like, state its bounds (your claim of record, drawn solid).</p>
+
+      <label class="loc-field save-field-row">
+        <span class="loc-label">Name <span class="save-req" aria-hidden="true">· required</span></span>
+        <input type="text" id="save-name" class="loc-input" maxlength="40" autocomplete="off" placeholder="Home place">
+      </label>
+      <label class="loc-field save-field-row">
+        <span class="loc-label">Note <span class="save-opt" aria-hidden="true">· optional</span></span>
+        <input type="text" id="save-note" class="loc-input" maxlength="140" autocomplete="off" placeholder="corn/soybean · rented · tile map in shed…">
+      </label>
+
+      <!-- BOUNDS block -->
+      <div class="save-bounds" aria-label="Stated bounds">
+        <p class="save-bounds-status" id="save-bounds-status">No bounds stated — this field renders live, no wash. State bounds to draw your claim.</p>
+        <button type="button" id="save-bounds-use" class="save-bounds-use">Use current view as bounds</button>
+        <div class="save-bounds-grid">
+          <label class="save-bounds-field"><span class="save-bounds-k">N</span><input type="text" id="save-bounds-n" class="save-bounds-input" inputmode="decimal" autocomplete="off"></label>
+          <label class="save-bounds-field"><span class="save-bounds-k">S</span><input type="text" id="save-bounds-s" class="save-bounds-input" inputmode="decimal" autocomplete="off"></label>
+          <label class="save-bounds-field"><span class="save-bounds-k">E</span><input type="text" id="save-bounds-e" class="save-bounds-input" inputmode="decimal" autocomplete="off"></label>
+          <label class="save-bounds-field"><span class="save-bounds-k">W</span><input type="text" id="save-bounds-w" class="save-bounds-input" inputmode="decimal" autocomplete="off"></label>
+        </div>
+        <button type="button" id="save-bounds-clear" class="save-bounds-clear">Clear bounds</button>
+      </div>
+
+      <p class="save-msg" id="save-msg" hidden></p>
+      <button type="button" id="save-field-btn" class="loc-read-btn">Save this field</button>
+    </section>
+  </div>
+</div>
+
+<!-- ===== Field switcher panel (spec-saved-fields-v1 §4) — opens from the field
+     chip (#field-chip). R2 charger-row list: Allerton (worked example · analyst
+     layer) + saved fields + the current unsaved read if any. Row tap restores
+     from the read cache instantly (setField). Row × deletes the registry entry
+     only (confirm inline). Built by JS (populated on open). ===== -->
+<aside id="field-switcher" class="field-switcher" hidden aria-label="Switch field" role="menu">
+  <p class="switcher-title">Fields</p>
+  <div id="switcher-list" class="switcher-list"></div>
+  <!-- spec-switcher-a11y-v1 §6: a quiet keyboard hint at the panel's foot.
+       aria-hidden because SRs already get the real contract from the roles
+       (menu/menuitem) + roving tabindex — this is a sighted-keyboard nudge
+       only, and it's noise on touch (hidden under pointer:coarse in CSS). -->
+  <p class="switcher-kbd-hint" aria-hidden="true">↑↓ move · Enter switch · Delete remove</p>
+</aside>
+
+<!-- ===== Scripts (baked; no fetch, file:// safe) ===== -->
+<script src="dem-grid.js?v=3"></script>
+<script src="dem-grid-ext.js?v=3"></script>
+<script src="boundaries.js?v=3"></script>
+<script src="data.js?v=8"></script>
+<script src="engine.js?v=7"></script>
+<script src="live.js?v=8"></script>
+<script src="fields.js?v=1"></script>
+<script src="focus-r2.js?v=35"></script>
+<script>
+/* Bootstrap: build the zone cards from FOCUS_DATA into both the desktop rail
+ * and the mobile sheet, wire the header + provenance dialog, then init the map.
+ * The renderer emits ONLY fixed labels + data field values — it cannot cheat. */
+(function () {
+  "use strict";
+  var D = window.FOCUS_DATA;
+
+  function delta(n) {
+    if (n > 0) return { cls: "up", txt: "▲ +" + n };
+    if (n < 0) return { cls: "down", txt: "▼ " + n };
+    return { cls: "flat", txt: "— 0" };
+  }
+
+  /* Signals render as STAT TILES (label + value minicards). The instrument is
+   * the tile label; the reading is the value; conditions are the muted footnote.
+   * The competing interpretations (east low) render as read tiles below. */
+  function signalTile(s) {
+    return '<div class="stat-tile">' +
+      '<p class="stat-label">' + s.instrument + '</p>' +
+      '<p class="stat-value">' + s.reading + '</p>' +
+      '<p class="stat-cond">' + s.conditions + '</p>' +
+    '</div>';
+  }
+
+  /* The thin-line probe-in-soil illustration (seat-diagram style): 1.75px
+   * --ink-2 strokes, amber highlights, two labeled callouts. Ground-truth ask. */
+  function probeIllustration() {
+    return '' +
+    '<svg class="probe-illo" viewBox="0 0 320 180" role="img" ' +
+      'aria-label="Thin-line drawing: a soil probe pushed into the ground, with two callouts — probe here, or tell it where it ponds.">' +
+      '<defs></defs>' +
+      // ground line + soil fill hatch region
+      '<line class="illo-stroke" x1="20" y1="96" x2="300" y2="96"/>' +
+      '<path class="illo-soil" d="M20 96 Q90 104 160 100 T300 98 L300 150 L20 150 Z"/>' +
+      // the probe: shaft into ground, T-handle on top
+      '<line class="illo-stroke" x1="128" y1="34" x2="128" y2="140"/>' +
+      '<line class="illo-stroke" x1="108" y1="34" x2="148" y2="34"/>' +
+      // amber tip where it reads
+      '<circle class="illo-accent-fill" cx="128" cy="140" r="4.5"/>' +
+      '<line class="illo-accent" x1="122" y1="128" x2="128" y2="140"/>' +
+      '<line class="illo-accent" x1="134" y1="128" x2="128" y2="140"/>' +
+      // callout 1: probe here (amber) — to the tip
+      '<line class="illo-lead" x1="128" y1="140" x2="205" y2="128"/>' +
+      '<circle class="illo-accent-fill" cx="205" cy="128" r="3"/>' +
+      '<text class="illo-label illo-label--accent" x="212" y="132">probe here</text>' +
+      // callout 2: or tell it where it ponds — to a low pool on the ground
+      '<path class="illo-accent" d="M228 92 q14 6 28 0" fill="none"/>' +
+      '<line class="illo-lead" x1="242" y1="92" x2="242" y2="66"/>' +
+      '<circle class="illo-dot" cx="242" cy="66" r="3"/>' +
+      '<text class="illo-label" x="236" y="58" text-anchor="end">or tell it where</text>' +
+      '<text class="illo-label" x="236" y="70" text-anchor="end">it ponds</text>' +
+    '</svg>';
+  }
+
+  function refusalBlock(z) {
+    var reads = z.refusal.reads.map(function (r) {
+      return '<div class="read-tile">' +
+        '<span class="read-tag">' + r.tag + '</span>' +
+        '<p class="read-claim">' + r.claim + '</p>' +
+        '<p class="read-support">' + r.support + '</p>' +
+      '</div>';
+    }).join("");
+    return '<div class="refusal-block">' +
+      '<p class="refusal-flag">' + z.refusal.line + '</p>' +
+      '<p class="refusal-why">' + z.refusal.why + '</p>' +
+      '<div class="reads">' + reads + '</div>' +
+      '<p class="refusal-cannot"><strong>' + z.refusal.cannotDecide + '</strong></p>' +
+      '<p class="refusal-ask">' + z.refusal.ask + '</p>' +
+      '<figure class="probe-fig">' + probeIllustration() +
+        '<figcaption>Ground truth the instrument is asking for.</figcaption></figure>' +
+    '</div>';
+  }
+
+  /* Weather stat card — real NWS forecast, from field-scan-allerton.md. A thin-
+   * line sun/storm glyph + the real 90° hero + storm note. Real values only. */
+  function weatherCard() {
+    // Values come from FORECASTS[the default day] — never a literal, so the
+    // Field & date dialog can re-render the tile for the OTHER real day by
+    // reading the same structure. No parsing, no fabrication.
+    var f = D.forecasts["2026-07-03"];
+    return '<div class="weather-card">' +
+      '<svg class="wx-glyph" viewBox="0 0 44 44" role="img" aria-label="Sun behind a storm cloud">' +
+        '<circle class="wx-sun" cx="16" cy="15" r="7"/>' +
+        '<line class="wx-ray" x1="16" y1="3" x2="16" y2="6"/>' +
+        '<line class="wx-ray" x1="6" y1="7" x2="8" y2="9"/>' +
+        '<line class="wx-ray" x1="3" y1="16" x2="6" y2="16"/>' +
+        '<path class="wx-cloud" d="M16 30 a7 7 0 0 1 7-7 a8 8 0 0 1 15 2 a6 6 0 0 1 -1 12 H17 a6 6 0 0 1 -1 -12 Z"/>' +
+        '<line class="wx-bolt" x1="24" y1="36" x2="21" y2="42"/>' +
+        '<line class="wx-bolt" x1="30" y1="36" x2="27" y2="42"/>' +
+      '</svg>' +
+      '<div class="wx-body">' +
+        '<p class="wx-hero"><span class="wx-hero-num">' + f.tempF + '</span><span class="wx-deg">°F</span></p>' +
+        '<p class="wx-line">' + f.line + '</p>' +
+        '<p class="wx-sub">' + f.sub + '</p>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function priorityChip(p) {
+    return '<span class="prio prio--' + p + '">' + p + '</span>';
+  }
+
+  function cardHTML(z) {
+    var d = delta(z.confidenceDelta);
+    var tiles = z.signals.map(signalTile).join("");
+    // muted on-farm stat tile marked exactly "not connected"
+    var onFarmTile = '<div class="stat-tile stat-tile--muted">' +
+      '<p class="stat-label">On-farm layer</p>' +
+      '<p class="stat-value stat-value--muted">not connected</p>' +
+      '<p class="stat-cond">' + D.onFarmLine + '</p>' +
+    '</div>';
+    var wx = (z.id === "east-low-compound") ? weatherCard() : "";
+    var refusal = z.refusal ? refusalBlock(z) : "";
+
+    return '<article class="zone-card' + (z.resolvable ? '' : ' zone-card--refusal') + '" ' +
+        'data-zone="' + z.id + '" data-peek="' + z.name + ' · ' + z.priority + ' · ' + z.confidence + '%" ' +
+        'tabindex="0" role="button" aria-label="' + z.name + ', ' + z.priority + ' priority, confidence ' + z.confidence + ' percent. Focus this zone.">' +
+      '<header class="card-head">' +
+        '<h2 class="card-name">' + z.name + '</h2>' +
+        priorityChip(z.priority) +
+      '</header>' +
+      '<p class="card-soil">' + z.soil + '</p>' +
+      // confidence as the HERO display numeral + delta chip
+      '<div class="conf-row">' +
+        '<div class="conf-hero">' +
+          '<span class="conf-num">' + z.confidence + '</span><span class="conf-pct">%</span>' +
+        '</div>' +
+        '<div class="conf-meta">' +
+          '<span class="conf-label">confidence</span>' +
+          '<span class="conf-delta ' + d.cls + '">' + d.txt + '</span>' +
+          (z.resolvable ? '' : '<span class="conf-note">rising toward a more exact not-knowing</span>') +
+        '</div>' +
+      '</div>' +
+      wx +
+      '<div class="stat-tiles">' + tiles + onFarmTile + '</div>' +
+      refusal +
+      '<p class="loop-note">' + z.loopNote + '</p>' +
+    '</article>';
+  }
+
+  // buildAllerton() (re-runnable): fills the rail/sheet with the worked Allerton
+  // reading + header/pill/provenance. Registered with the renderer so switching
+  // the field chip back from a live read restores it EXACTLY (setField(null)).
+  function buildAllerton() {
+    var cardsHTML = D.zones.map(cardHTML).join("");
+    var railMount = document.getElementById("rail-cards");
+    var sheetMount = document.getElementById("sheet-cards");
+    if (railMount) railMount.innerHTML = cardsHTML;
+    if (sheetMount) sheetMount.innerHTML = cardsHTML;
+
+    // header fields + field-label pill ("Allerton, IA · July 3, 2026")
+    document.getElementById("field-name").textContent = D.field.name;
+    document.getElementById("field-date").textContent = D.field.dateLabel;
+    document.getElementById("field-sub").textContent = D.field.acreage + " · " + D.field.gradient;
+    document.getElementById("field-honesty").textContent = D.field.honesty;
+    document.getElementById("field-pill-text").textContent = D.field.name + " · " + D.field.dateLabel;
+    document.querySelector(".field-name").textContent = D.field.name;
+    document.querySelectorAll(".field-date").forEach(function (el) { el.textContent = D.field.dateLabel; });
+    document.querySelector(".field-sub-m").textContent = D.field.acreage;
+    var peek = document.getElementById("sheet-peek-zone"); if (peek) peek.textContent = D.field.name;
+
+    // provenance dialog (baked Allerton sources)
+    document.getElementById("prov-date").textContent = D.provenance.fetched;
+    document.getElementById("prov-sources").innerHTML = D.provenance.sources.map(function (s) {
+      return '<li><span class="prov-name">' + s.name + '</span>' +
+             '<span class="prov-detail">' + s.detail + '</span>' +
+             '<span class="prov-limit">limit: ' + s.limit + '</span></li>';
+    }).join("");
+    document.getElementById("prov-unavailable").innerHTML = D.provenance.unavailable.map(function (u) {
+      return '<li>' + u + '</li>';
+    }).join("");
+  }
+
+  if (window.AGRIOS_FOCUS_R2) window.AGRIOS_FOCUS_R2.registerAllertonContent(buildAllerton);
+  buildAllerton();
+
+  // init the map + all interaction wiring
+  if (window.AGRIOS_FOCUS_R2) window.AGRIOS_FOCUS_R2.init(window.DEM_GRID_EXT.grid);
+})();
+</script>
+</body>
+</html>

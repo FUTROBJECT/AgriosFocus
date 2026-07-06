@@ -1,0 +1,94 @@
+/* =============================================================================
+ * AGRIOS design system — "R2" tokens (Rivian-inspired)
+ * Source of truth: design/r2/design-system.md
+ * Import or copy into any AGRIOS R2-language surface.
+ * ========================================================================== */
+:root {
+  /* terrain + map */
+  --terrain-low: #EFEDE3;
+  --terrain-high: #DDE5D3;
+  --wash-fill: var(--terrain-low); /* outside-bounds mute: light lightens strokes toward paper */
+  --wash-alpha: 0.55;
+  --contour: #9AA08C;
+  --contour-index: #6F7562;
+  --road: #B9B3A4;   /* structural: Census TIGER local roads (solid) */
+  --water: #8FB3C7;  /* structural: USGS NHD flowlines (46003 dashed, 55800 faint) */
+
+  /* surfaces */
+  --surface: #FFFFFF;
+  --surface-warm: #F7F6F2;
+  --surface-translucent: rgba(255, 255, 255, 0.88);
+
+  /* dark instruments */
+  --dock: #161618;
+  --dock-2: #242427;
+  --on-dock: #F4F4F2;
+  --on-dock-2: #9FA3A0;
+
+  /* ink */
+  --ink: #1E1E20;
+  --ink-2: #6E7268;
+
+  /* accents */
+  --accent: #F5A623;
+  --accent-ink: #3D2E08;
+  --accent-text: #6B4A06;  /* amber text on tint/plain (NOT solid amber); dark: #F2B45A */
+  --accent-tint: rgba(245, 166, 35, 0.16);
+  --puck: #3B82F6;
+  --alarm: #D64545; /* reserved; absent by default */
+
+  /* shape */
+  --r-pill: 999px;
+  --r-panel: 28px;
+  --r-card: 24px;
+  --r-row: 16px;
+
+  /* elevation */
+  --shadow-float: 0 10px 30px rgba(20, 20, 20, 0.14);
+  --shadow-soft: 0 4px 14px rgba(20, 20, 20, 0.08);
+
+  /* type (DM Sans loaded by the page) */
+  --font: 'DM Sans', system-ui, sans-serif;
+  --label: 700 12px/1.3 var(--font);      /* + letter-spacing .08em, uppercase */
+  --body: 400 15px/1.5 var(--font);
+  --title: 700 18px/1.3 var(--font);
+  --section: 800 22px/1.25 var(--font);
+  --display: 700 56px/1 var(--font);      /* hero numerals (confidence) */
+
+  /* float inset: floating elements never touch screen edges */
+  --inset: 14px;
+}
+
+/* =============================================================================
+ * DARK THEME — gate on [data-theme="dark"] set on <html>. Light is the default
+ * R2 identity; dark is an explicit opt-in (a rail toggle), never auto-follows
+ * prefers-color-scheme. Dark instruments (--dock/--dock-2/--on-dock/--accent/
+ * --accent-ink) are unchanged — they were already dark, amber still pops.
+ * First shipped in focus-r2/ (see focus-r2.css + focus-r2.js retintMap()).
+ * ========================================================================== */
+html[data-theme="dark"] {
+  --accent-text: #F2B45A;
+  --terrain-low: #1A1B18;
+  --terrain-high: #2E3428;
+  --wash-fill: #000000; /* a dark veil over REAL surround terrain (spec-surround-context-v1 guarantees there is
+     terrain out there to dim — the earlier black-wash failure was a no-data void, not the color). Black halves
+     the surround's luminance for an OBVIOUS inside/outside step while strokes keep half their brightness —
+     dark enough to contrast, transparent enough to read the topo (Adam's spec, round five). */
+  --wash-alpha: 0.5;
+  --contour: #7E8470;
+  --contour-index: #C9CDBB;
+  --road: #4A4B45;
+  --water: #5E7E96;
+
+  --surface: #1E1F21;
+  --surface-warm: #26272A;
+  --surface-translucent: rgba(24, 25, 26, 0.82);
+
+  --ink: #ECEDEA;
+  --ink-2: #9EA29B;
+
+  --accent-tint: rgba(245, 166, 35, 0.20);
+
+  --shadow-float: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --shadow-soft: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
