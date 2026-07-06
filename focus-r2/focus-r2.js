@@ -1662,16 +1662,40 @@
              " · E " + AGRIOS_FOCUS_R2.fmtDeg(P.lon[1]) + " · W " + AGRIOS_FOCUS_R2.fmtDeg(P.lon[0]);
     }
 
+    // ~acres from a stated-bounds rectangle — a COMPUTED fact, tagged as such.
+    // Simple equirectangular area (fine at field scale); never shown without
+    // stated bounds (acreage is not knowable from an unbounded read).
+    function approxAcres(b) {
+      var dy = (b.n - b.s) * 111320;
+      var dx = (b.e - b.w) * 111320 * Math.cos(((b.n + b.s) / 2) * Math.PI / 180);
+      return "~" + Math.round(Math.abs(dx * dy) / 4046.8564224) + " acres (from stated bounds)";
+    }
+
     function openFieldDialog() {
-      // populate current-field facts, refreshing the LIVE view bounds
-      setText("fd-name", D.field.name);
-      setText("fd-coords", D.field.coords);
-      setText("fd-stated", statedBounds());
-      setText("fd-acreage", D.field.acreage);
+      // populate current-field facts for the ACTIVE field — the baked Allerton
+      // facts (analyst layer: acreage/crop/county) belong to Allerton ONLY. A
+      // live read shows ITS name/coords, bounds only if STATED, acreage only
+      // as a computed fact of those bounds. (Caught by Adam on the published
+      // site: a live read's dialog still printed Allerton's facts.)
+      var active = AGRIOS_FOCUS_R2.getActive && AGRIOS_FOCUS_R2.getActive();
+      var noteEl = document.getElementById("fd-facts-note");
+      if (active && active.live && active.read) {
+        var f = active.field;
+        setText("fd-name", (f && f.name) ? f.name : "unsaved read");
+        setText("fd-coords", AGRIOS_FOCUS_R2.fmtDeg(active.read.lat) + ", " + AGRIOS_FOCUS_R2.fmtDeg(active.read.lon));
+        setText("fd-stated", (f && f.bounds) ? fmtBounds(f.bounds) : "not stated — save the field and “use current view as bounds”");
+        setText("fd-acreage", (f && f.bounds) ? approxAcres(f.bounds) : "—");
+        if (noteEl) noteEl.textContent = "Stated bounds are your claim of record — drawn solid on the map once stated. Current view is live — it tracks whatever you pan or zoom to.";
+      } else {
+        setText("fd-name", D.field.name);
+        setText("fd-coords", D.field.coords);
+        setText("fd-stated", statedBounds());
+        setText("fd-acreage", D.field.acreage);
+        if (noteEl) noteEl.textContent = "Stated bounds are the field's fixed parcel (USGS/USDA extent). Current view is live — it tracks whatever you pan or zoom to on the map.";
+      }
       setText("fd-view", fmtBounds(mapCtl.getBounds && mapCtl.getBounds()));
       // DATE section: a LIVE read shows the fetched forecast WINDOW (day chips +
       // a clamped date input); Allerton keeps its two baked held-day chips.
-      var active = AGRIOS_FOCUS_R2.getActive && AGRIOS_FOCUS_R2.getActive();
       // clear any transient location/date messages from a prior open
       hide("date-missing"); hide("loc-msg"); hide("capability-card");
       var di = document.getElementById("date-input");
@@ -1685,8 +1709,10 @@
         if (di) { di.min = "2020-01-01"; di.max = "2030-12-31"; }
       }
       var la = document.getElementById("loc-lat"), lo = document.getElementById("loc-lon");
-      if (la) { la.value = ""; la.placeholder = D.field.coordsLat || "40.8977"; }
-      if (lo) { lo.value = ""; lo.placeholder = D.field.coordsLon || "−93.1970"; }
+      var phLat = (active && active.live && active.read) ? AGRIOS_FOCUS_R2.fmtDeg(active.read.lat) : (D.field.coordsLat || "40.8977");
+      var phLon = (active && active.live && active.read) ? AGRIOS_FOCUS_R2.fmtDeg(active.read.lon) : (D.field.coordsLon || "−93.1970");
+      if (la) { la.value = ""; la.placeholder = phLat; }
+      if (lo) { lo.value = ""; lo.placeholder = phLon; }
       // SAVE THIS FIELD section (spec-saved-fields-v1): only when a live read is
       // active. Re-opening a saved field prefills its name/note/bounds to edit.
       refreshSaveSection();

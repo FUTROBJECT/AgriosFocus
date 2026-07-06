@@ -1804,7 +1804,7 @@ ok(/@media \(pointer: coarse\)\s*\{\s*\.switcher-kbd-hint\s*\{\s*display:\s*none
 
 console.log("\n== CACHE-BUST: ?v= bumped on the touched references (css/js/engine) ==");
 ok(/focus-r2\.css\?v=33/.test(html), "focus-r2.css reference bumped to ?v=33");
-ok(/focus-r2\.js\?v=35/.test(html), "focus-r2.js reference bumped to ?v=35");
+ok(/focus-r2\.js\?v=36/.test(html), "focus-r2.js reference bumped to ?v=35");
 ok(/engine\.js\?v=7/.test(html), "engine.js reference stays ?v=7 (engine UNTOUCHED for this spec)");
 ok(/live\.js\?v=8/.test(html), "live.js reference bumped to ?v=8 (surround fetch)");
 
@@ -2028,6 +2028,26 @@ ok(/\.outside-wash \{ pointer-events: none; fill: var\(--wash-fill\); fill-opaci
 ok(/"fill-opacity": 0\.55/.test(js), "the inline SVG attrs stay as a harmless fallback (both wash call sites)");
 var dsmWash = fs.readFileSync(path.join(repo, "design", "r2", "design-system.md"), "utf8");
 ok(/--wash-fill/.test(dsmWash) && /--wash-alpha/.test(dsmWash), "design-system.md records the fill+alpha wash rule");
+
+/* -------------------------------------------------------------------------
+ * DIALOG FIELD FACTS FOLLOW THE ACTIVE FIELD (caught by Adam on the published
+ * site). The Field & date CURRENT FIELD block printed Allerton's analyst facts
+ * (name/coords/stated bounds/acreage-crop-county) during a LIVE read — a
+ * vocabulary breach. Now it branches: live reads show THEIR facts; bounds only
+ * if stated; acreage only as a computed fact of stated bounds; Allerton keeps
+ * its baked analyst block.
+ * ------------------------------------------------------------------------- */
+console.log("\n== DIALOG: current-field facts branch on the ACTIVE field ==");
+ok(/var active = AGRIOS_FOCUS_R2\.getActive && AGRIOS_FOCUS_R2\.getActive\(\);\s*\n\s*var noteEl/.test(js), "openFieldDialog resolves the active field BEFORE populating facts");
+ok(/setText\("fd-name", \(f && f\.name\) \? f\.name : "unsaved read"\)/.test(js), "live read: name is the saved field's or 'unsaved read' — never Allerton's");
+ok(/setText\("fd-coords", AGRIOS_FOCUS_R2\.fmtDeg\(active\.read\.lat\)/.test(js), "live read: coordinates come from the READ, not the baked field");
+ok(/not stated — save the field and “use current view as bounds”/.test(js), "unbounded live read: stated bounds honestly 'not stated' + the path to state them (verbatim)");
+ok(/function approxAcres\(b\)/.test(js) && /4046\.8564224/.test(js) && /acres \(from stated bounds\)/.test(js), "acreage is computed from STATED bounds and tagged '(from stated bounds)' — never asserted without them");
+ok(/setText\("fd-acreage", \(f && f\.bounds\) \? approxAcres\(f\.bounds\) : "—"\)/.test(js), "no stated bounds → acreage is an honest em-dash");
+ok(/stated bounds are your claim of record/i.test(js) && /the field's fixed parcel \(USGS\/USDA extent\)/i.test(js), "the facts note switches vocabulary: claim-of-record (live) vs fixed-parcel (Allerton)");
+ok(/id="fd-facts-note"/.test(html), "the facts note carries its id (JS swaps the copy per active field)");
+ok(/setText\("fd-name", D\.field\.name\)/.test(js) && /setText\("fd-acreage", D\.field\.acreage\)/.test(js), "the Allerton branch still prints the baked analyst facts (unchanged path)");
+ok(/phLat = \(active && active\.live && active\.read\) \? AGRIOS_FOCUS_R2\.fmtDeg\(active\.read\.lat\)/.test(js), "location placeholders reflect the active read's coords on live reads");
 
 /* ========================================================================= */
 console.log("\n== summary ==");
