@@ -1369,6 +1369,6 @@ body.has-surround .layer-row--surround { display: block; }
  * ========================================================================== */
 .field-pill, .view-bounds-pill, .prov-chip, .field-chip, .cached-chip,
 .map-popover, .ctl, .save-entry-chip ~ * .noop { border: 0; }
-.field-pill, .view-bounds-pill, .prov-chip, .field-chip, .cached-chip, .map-popover, .ctl {
+.field-pill, .view-bounds-pill, .prov-chip, .field-chip, .cached-chip, .map-popover, .ctl, .dock {
   border: 1px solid var(--float-border);
 }

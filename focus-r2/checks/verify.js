@@ -1803,7 +1803,7 @@ ok(/\.switcher-kbd-hint\s*\{[^}]*color:\s*var\(--ink-2\)/.test(css), "the hint u
 ok(/@media \(pointer: coarse\)\s*\{\s*\.switcher-kbd-hint\s*\{\s*display:\s*none/.test(css), "the hint is hidden under @media (pointer: coarse) — noise on touch");
 
 console.log("\n== CACHE-BUST: ?v= bumped on the touched references (css/js/engine) ==");
-ok(/focus-r2\.css\?v=33/.test(html), "focus-r2.css reference bumped to ?v=33");
+ok(/focus-r2\.css\?v=34/.test(html), "focus-r2.css reference bumped to ?v=34");
 ok(/focus-r2\.js\?v=36/.test(html), "focus-r2.js reference bumped to ?v=35");
 ok(/engine\.js\?v=7/.test(html), "engine.js reference stays ?v=7 (engine UNTOUCHED for this spec)");
 ok(/live\.js\?v=8/.test(html), "live.js reference bumped to ?v=8 (surround fetch)");
@@ -2048,6 +2048,10 @@ ok(/stated bounds are your claim of record/i.test(js) && /the field's fixed parc
 ok(/id="fd-facts-note"/.test(html), "the facts note carries its id (JS swaps the copy per active field)");
 ok(/setText\("fd-name", D\.field\.name\)/.test(js) && /setText\("fd-acreage", D\.field\.acreage\)/.test(js), "the Allerton branch still prints the baked analyst facts (unchanged path)");
 ok(/phLat = \(active && active\.live && active\.read\) \? AGRIOS_FOCUS_R2\.fmtDeg\(active\.read\.lat\)/.test(js), "location placeholders reflect the active read's coords on live reads");
+
+console.log("\n== DOCK: the bottom zone strip joins the dark-mode float-separation group ==");
+ok(/\.field-pill, \.view-bounds-pill, \.prov-chip, \.field-chip, \.cached-chip, \.map-popover, \.ctl, \.dock \{\s*\n\s*border: 1px solid var\(--float-border\);/.test(css), "the .dock carries the theme-aware --float-border hairline (invisible on light, visible on dark) like the other floating surfaces");
+ok(/--float-border: rgba\(244, 244, 242, 0\.18\)/.test(css) && /--float-border: rgba\(30, 30, 32, 0\)/.test(css), "--float-border stays 0-alpha on light / visible hairline on dark (unchanged) — the dock inherits both");
 
 /* ========================================================================= */
 console.log("\n== summary ==");
