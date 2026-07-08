@@ -1803,8 +1803,8 @@ ok(/\.switcher-kbd-hint\s*\{[^}]*color:\s*var\(--ink-2\)/.test(css), "the hint u
 ok(/@media \(pointer: coarse\)\s*\{\s*\.switcher-kbd-hint\s*\{\s*display:\s*none/.test(css), "the hint is hidden under @media (pointer: coarse) — noise on touch");
 
 console.log("\n== CACHE-BUST: ?v= bumped on the touched references (css/js/engine) ==");
-ok(/focus-r2\.css\?v=34/.test(html), "focus-r2.css reference bumped to ?v=34");
-ok(/focus-r2\.js\?v=37/.test(html), "focus-r2.js reference bumped to ?v=37 (spec-howto-v1)");
+ok(/focus-r2\.css\?v=36/.test(html), "focus-r2.css reference bumped to ?v=36 (tour button-row wrap fix)");
+ok(/focus-r2\.js\?v=38/.test(html), "focus-r2.js reference bumped to ?v=38 (spec-onboarding-tour-v1)");
 ok(/engine\.js\?v=7/.test(html), "engine.js reference stays ?v=7 (engine UNTOUCHED for this spec)");
 ok(/live\.js\?v=8/.test(html), "live.js reference bumped to ?v=8 (surround fetch)");
 
@@ -2101,6 +2101,83 @@ console.log("\n== HOW-TO PANEL: honesty gates on the copy (the point of this fea
    ok(howtoBlock.indexOf(phrase) !== -1, "honesty-gate phrase present verbatim: \"" + phrase + "\""));
 ok(!/%/.test(howtoBlock), "no % anywhere inside #howto-dialog (data support is a count, n/4, never a percentage)");
 ok(!/confidence/i.test(howtoBlock), "no \"confidence\" claim anywhere inside #howto-dialog (no invented confidence)");
+
+/* =============================================================================
+ * ONBOARDING TOUR (spec-onboarding-tour-v1) — a click-through spotlight tour.
+ * The overlay is built by JS at runtime, so these are static structural/copy
+ * checks: the steps table + 7 selectors, the box-shadow cutout reusing the
+ * .dialog backdrop, z 80 > 60, keyboard + seen-key + auto-start guards, the
+ * verbatim relaunch button + wiring, the honesty gates on the tour copy, the
+ * reduced-motion query, tokens-only .tour-* styles, and the ?v= bumps.
+ * ------------------------------------------------------------------------- */
+console.log("\n== TOUR: steps table — exactly the 7 selectors, in order, with the skip rules ==");
+const tourStepsBlock = (js.match(/var TOUR_STEPS = \[([\s\S]*?)\n  \];/) || [, ""])[1];
+ok(tourStepsBlock.length > 0, "TOUR_STEPS array is present and delimited (isolates the copy/selector checks)");
+ok(/sel:\s*"#field-pill"/.test(tourStepsBlock), "step 1 sel is #field-pill");
+ok(/sel:\s*"#focus-map",\s*mobileSel:\s*"#focus-map",\s*region:\s*0\.6/.test(tourStepsBlock), "step 2 sel is #focus-map with region: 0.6 (a centered ~60% of the hero, not the whole map)");
+ok(/sel:\s*"\.refusal-band",\s*mobileSel:\s*"\.refusal-band",\s*skipIfAbsent:\s*true/.test(tourStepsBlock), "step 3 sel is .refusal-band with skipIfAbsent: true (Allerton's east low; skip if absent)");
+ok(/sel:\s*"#rail",\s*mobileSel:\s*"#sheet"/.test(tourStepsBlock), "step 4 sel is #rail with mobileSel #sheet (the mobile bottom sheet hosting #sheet-cards)");
+ok(/sel:\s*"#dock"/.test(tourStepsBlock), "step 5 sel is #dock");
+ok(/sel:\s*"#rail-nav"/.test(tourStepsBlock), "step 6 sel is #rail-nav");
+ok(/name:\s*"the instrument",\s*center:\s*true/.test(tourStepsBlock), "step 7 is center: true (no spotlight — a centered card)");
+const tourSelCount = (tourStepsBlock.match(/\bsel:/g) || []).length;
+ok(tourSelCount === 6, "exactly 6 spotlight steps carry a sel + 1 centered step = 7 stops (" + tourSelCount + " sel keys)");
+ok(/function tourStepShown/.test(js) && /return step\.center \? true : !!tourEl\(step\)/.test(js), "skip-if-missing logic present: a step is shown only if centered or its target resolves (tourEl → null ⇒ skipped)");
+ok(/function tourNextShown/.test(js) && /function tourPrevShown/.test(js), "navigation skips over unshown steps (tourNextShown / tourPrevShown walk to the next/prev shown index)");
+
+console.log("\n== TOUR: spotlight — box-shadow cutout reusing the .dialog backdrop; z 80 > 60 ==");
+const dialogBg = (css.match(/\.dialog\s*\{[^}]*background:\s*(rgba\([^)]*\))/) || [, ""])[1];
+ok(dialogBg === "rgba(20,20,20,0.4)", ".dialog backdrop value read from CSS is rgba(20,20,20,0.4) (" + dialogBg + ")");
+ok(css.indexOf("box-shadow: 0 0 0 9999px " + dialogBg + ";") !== -1, ".tour-spot uses the box-shadow cutout (0 0 0 9999px) with the SAME backdrop value as .dialog — one dimming language, not a new color");
+const dialogZ = (css.match(/\.dialog\s*\{[^}]*z-index:\s*(\d+)/) || [, ""])[1];
+const tourZ = (css.match(/#tour\s*\{[^}]*z-index:\s*(\d+)/) || [, ""])[1];
+ok(dialogZ === "60", ".dialog z-index is 60 (" + dialogZ + ")");
+ok(tourZ === "80", "#tour z-index is 80 (" + tourZ + ")");
+ok(Number(tourZ) > Number(dialogZ), "#tour (80) sits ABOVE the dialogs (60) — " + tourZ + " > " + dialogZ);
+ok(/#tour\s*\{[^}]*pointer-events:\s*auto/.test(css), "#tour captures pointer-events (nothing behind the overlay is clickable while active)");
+
+console.log("\n== TOUR: keyboard, seen-key on ANY exit, and the auto-start guards ==");
+ok(/e\.key === "Escape"[\s\S]*?tourEnd\(\)/.test(js), "Escape ends the tour (= skip; Esc always works)");
+ok(/e\.key === "ArrowRight"[\s\S]*?tourNext\(\)/.test(js), "ArrowRight advances (next)");
+ok(/e\.key === "ArrowLeft"[\s\S]*?tourBack\(\)/.test(js), "ArrowLeft goes back");
+ok(/e\.key === "Tab"/.test(js) && /trap focus inside the card/.test(js), "Tab is trapped inside the card");
+ok(/var TOUR_SEEN_KEY = "agrios\.tour\.seenAt"/.test(js), "the persistence key is agrios.tour.seenAt");
+ok(/function tourEnd\(\)[\s\S]*?root\.localStorage\.setItem\(TOUR_SEEN_KEY, String\(Date\.now\(\)\)\)/.test(js), "ANY exit sets agrios.tour.seenAt to a timestamp (tourEnd is the single exit for Done/Skip/Esc/how-to)");
+const autoStartFn = (js.match(/function tourMaybeAutoStart\(\) \{([\s\S]*?)\n  \}/) || [, ""])[1];
+ok(/root\.localStorage\.getItem\(TOUR_SEEN_KEY\)/.test(autoStartFn) && /if \(seen\) return/.test(autoStartFn), "auto-start is guarded on the seen-key's ABSENCE (present ⇒ never auto-starts again)");
+ok(/document\.querySelector\("\.dialog\.open"\)\)? return/.test(autoStartFn) || /\.dialog\.open"\)\) return/.test(autoStartFn), "auto-start is guarded on no dialog already open");
+ok(/getElementById\("live-progress"\)/.test(autoStartFn) && /!prog\.hidden\) return/.test(autoStartFn), "auto-start is guarded on no live read in progress (the visible #live-progress panel is the honest signal)");
+ok(/root\.setTimeout\(tourMaybeAutoStart, \d+\)/.test(js), "auto-start is deferred until after the initial render settles (getBoundingClientRect valid; a short setTimeout, no rAF loop)");
+ok(/if \(tourState\) return;/.test(js), "startTour is idempotent — a second start while active is a no-op (Skip always available, no double overlay)");
+
+console.log("\n== TOUR: relaunch button in #howto-dialog (verbatim) + wiring ==");
+ok(/<button type="button" id="howto-tour-launch" class="tour-relaunch">Show me around — the 60-second tour<\/button>/.test(html), "the relaunch button exists with the verbatim label 'Show me around — the 60-second tour'");
+ok(howtoBlock.indexOf('id="howto-tour-launch"') !== -1, "the relaunch button lives inside #howto-dialog");
+ok(howtoBlock.indexOf('class="dialog-note"') < howtoBlock.indexOf('id="howto-tour-launch"'), "the relaunch button sits BELOW the .dialog-note (the always-available path at the foot of the dialog)");
+ok(/function wireTourRelaunch\(\)[\s\S]*?getElementById\("howto-tour-launch"\)[\s\S]*?closeDialog\(d\);[\s\S]*?startTour\(/.test(js), "wireTourRelaunch closes the dialog then startTour() — the always-available relaunch");
+ok(/wireTourRelaunch\(\);/.test(js), "wireTourRelaunch() is called from init()");
+
+console.log("\n== TOUR: honesty gates on the copy (same register as the how-to panel) ==");
+[
+  "facts the map can prove",
+  "holds the question open",
+  "working",
+  "count of evidence, never a percentage",
+  "where to look",
+  "the deciding stays yours"
+].forEach(phrase =>
+  ok(tourStepsBlock.indexOf(phrase) !== -1, "honesty-gate phrase present verbatim in the tour copy: \"" + phrase + "\""));
+ok(!/%/.test(tourStepsBlock), "no % anywhere in the tour copy (data support is a count, never a percentage)");
+ok(!/confidence/i.test(tourStepsBlock), "no \"confidence\" anywhere in the tour copy (no invented confidence)");
+
+console.log("\n== TOUR: reduced-motion honored + tokens only (no hardcoded hex in .tour-*) ==");
+const tourCssBlock = css.slice(css.indexOf("ONBOARDING TOUR (spec-onboarding-tour-v1)"));
+ok(/@media \(prefers-reduced-motion: reduce\) \{\s*\.tour-spot \{ transition: none; \}/.test(tourCssBlock), "the tour CSS kills the spotlight transition under prefers-reduced-motion: reduce");
+ok(!/#[0-9a-fA-F]{3,8}\b/.test(tourCssBlock.replace(/rgba\([^)]*\)/g, "")), "no hardcoded hex color anywhere in the .tour-* styles (tokens only; the one rgba is the shared .dialog backdrop)");
+
+console.log("\n== TOUR: cache-bust bumps ==");
+ok(/focus-r2\.js\?v=38/.test(html) && !/focus-r2\.js\?v=37/.test(html), "index.html loads focus-r2.js?v=38 (bumped from 37)");
+ok(/focus-r2\.css\?v=36/.test(html) && !/focus-r2\.css\?v=35/.test(html), "index.html loads focus-r2.css?v=36 (bumped from 35)");
 
 /* ========================================================================= */
 console.log("\n== summary ==");

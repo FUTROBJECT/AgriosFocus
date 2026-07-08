@@ -3380,9 +3380,306 @@
   }
 
   /* =========================================================================
+   * ONBOARDING TOUR (spec-onboarding-tour-v1) — the tour points, the panel
+   * explains. A #tour overlay (z-index 80, above the 60 dialogs) spotlights
+   * each target with the box-shadow-cutout trick (reusing the .dialog backdrop)
+   * and floats a small R2 card beside it: step text, an n/7 counter with dots,
+   * Back / Next / Skip. Seven stops. First visit auto-starts once (localStorage
+   * seen-key); ANY exit sets the key. The how-to dialog carries a permanent
+   * relaunch button. Vanilla, tokens only, keyboard-driven, focus-trapped.
+   * ========================================================================= */
+  var TOUR_SEEN_KEY = "agrios.tour.seenAt";
+  var TOUR_PAD = 8;   // spotlight padding around the target rect (+8px, per spec)
+
+  // The seven stops. sel = desktop target; mobileSel = fallback when sel is
+  // hidden at this viewport; if neither is visible the step is skipped silently.
+  // region = spotlight a centered fraction of the target (step 2, the map hero).
+  // center = no spotlight, a centered card (step 7). skipIfAbsent = drop the
+  // step when the target element is missing entirely (step 3, the refusal band —
+  // it exists on baked Allerton only). copy VERBATIM from the spec, honest
+  // register, consistent with the gated how-to panel.
+  var TOUR_STEPS = [
+    { name: "your field", sel: "#field-pill", mobileSel: "#field-pill",
+      html: "<strong>Your field.</strong> Tap here to enter coordinates and read your own ground live — public data, no account." },
+    { name: "the land", sel: "#focus-map", mobileSel: "#focus-map", region: 0.6,
+      html: "<strong>The land.</strong> Contour bands between thin lines, low to high. Dashed outlines are zones — their labels state only facts the map can prove." },
+    { name: "the held-open question", sel: ".refusal-band", mobileSel: ".refusal-band", skipIfAbsent: true,
+      html: "<strong>The held-open question.</strong> An amber ⟨?⟩ means the public sources disagree here, so AGRIOS holds the question open. That is the instrument working — a spot to go check yourself." },
+    { name: "zone cards", sel: "#rail", mobileSel: "#sheet",
+      html: "<strong>Zone cards.</strong> A chip points your eyes — look-first, look, quiet — with the printed rule and DATA SUPPORT n/4: a count of evidence, never a percentage." },
+    { name: "the zone strip", sel: "#dock", mobileSel: "#dock",
+      html: "<strong>The zone strip.</strong> Tap a name to jump the map to that zone." },
+    { name: "the utilities", sel: "#rail-nav", mobileSel: "#rail-nav",
+      html: "<strong>The utilities.</strong> ◇ sources and limits · ◐ light or dark · ⓘ what AGRIOS is · ? the full how-to — the deeper dive lives there." },
+    { name: "the instrument", center: true,
+      html: "<strong>That's the instrument.</strong> It shows you where to look; the deciding stays yours. When it points, go look." }
+  ];
+
+  var tourState = null;   // active tour scratch, or null when idle
+
+  // A target counts as visible if it renders a non-degenerate rect (display:none
+  // or a collapsed SVG <g> both give a ~0×0 box). Robust across HTML + SVG.
+  function tourVisible(el) {
+    if (!el) return false;
+    var r = el.getBoundingClientRect();
+    return r.width >= 4 && r.height >= 4;
+  }
+
+  // Resolve the on-screen element for a step at THIS viewport (sel, else the
+  // mobile fallback), or null. Center steps have no target.
+  function tourEl(step) {
+    if (step.center) return null;
+    var el = document.querySelector(step.sel);
+    if (tourVisible(el)) return el;
+    if (step.mobileSel && step.mobileSel !== step.sel) {
+      el = document.querySelector(step.mobileSel);
+      if (tourVisible(el)) return el;
+    }
+    return null;
+  }
+
+  // A step is SHOWN if it is the centered final card, or its target resolves.
+  // skipIfAbsent steps that resolve to nothing are simply not shown (skipped
+  // silently — the counter renumbers nothing, it just never lands on them).
+  function tourStepShown(step) {
+    return step.center ? true : !!tourEl(step);
+  }
+  function tourNextShown(i) {
+    for (var k = i + 1; k < TOUR_STEPS.length; k++) if (tourStepShown(TOUR_STEPS[k])) return k;
+    return -1;
+  }
+  function tourPrevShown(i) {
+    for (var k = i - 1; k >= 0; k--) if (tourStepShown(TOUR_STEPS[k])) return k;
+    return -1;
+  }
+  function tourFirstShown() {
+    for (var k = 0; k < TOUR_STEPS.length; k++) if (tourStepShown(TOUR_STEPS[k])) return k;
+    return TOUR_STEPS.length - 1;
+  }
+  function tourLastShown() {
+    for (var k = TOUR_STEPS.length - 1; k >= 0; k--) if (tourStepShown(TOUR_STEPS[k])) return k;
+    return TOUR_STEPS.length - 1;
+  }
+
+  // The rect to spotlight: the target's own box, optionally shrunk to a centered
+  // region (step 2 spotlights ~60% of the map hero, not the whole thing).
+  function tourTargetRect(el, step) {
+    var r = el.getBoundingClientRect();
+    var left = r.left, top = r.top, w = r.width, h = r.height;
+    if (step.region) {
+      var nw = w * step.region, nh = h * step.region;
+      left = r.left + (w - nw) / 2; top = r.top + (h - nh) / 2; w = nw; h = nh;
+    }
+    return { left: left, top: top, width: w, height: h };
+  }
+
+  function tourPlaceSpot(rect, el) {
+    var s = tourState.spot;
+    var w = rect.width + TOUR_PAD * 2, h = rect.height + TOUR_PAD * 2;
+    s.style.left = (rect.left - TOUR_PAD) + "px";
+    s.style.top = (rect.top - TOUR_PAD) + "px";
+    s.style.width = w + "px";
+    s.style.height = h + "px";
+    // the target's own corner radius (clamped) so pills read as pills
+    var br = el ? parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0 : 0;
+    s.style.borderRadius = Math.min(br || 10, h / 2) + "px";
+  }
+
+  function tourPlaceCard(rect) {
+    var st = tourState, card = st.card;
+    card.className = "tour-card";   // reset side/center classes, then measure
+    var cw = card.offsetWidth, ch = card.offsetHeight;
+    var vw = root.innerWidth, vh = root.innerHeight, m = 12, gap = TOUR_PAD + 14;
+    var spotTop = rect.top - TOUR_PAD, spotBottom = rect.top + rect.height + TOUR_PAD;
+    var spotLeft = rect.left - TOUR_PAD, spotRight = rect.left + rect.width + TOUR_PAD;
+    var cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+    var side, left, top;
+    // preference: below → above → right → left, first side that fits the viewport
+    if (spotBottom + gap + ch <= vh - m) { side = "below"; top = spotBottom + gap; left = cx - cw / 2; }
+    else if (spotTop - gap - ch >= m) { side = "above"; top = spotTop - gap - ch; left = cx - cw / 2; }
+    else if (spotRight + gap + cw <= vw - m) { side = "right"; left = spotRight + gap; top = cy - ch / 2; }
+    else if (spotLeft - gap - cw >= m) { side = "left"; left = spotLeft - gap - cw; top = cy - ch / 2; }
+    else { side = "below"; top = spotBottom + gap; left = cx - cw / 2; }
+    left = Math.max(m, Math.min(left, vw - cw - m));   // clamp inside viewport
+    top = Math.max(m, Math.min(top, vh - ch - m));
+    card.classList.add("tour-card--" + side);
+    card.style.left = left + "px"; card.style.top = top + "px"; card.style.transform = "";
+    // arrow aligned to the target center along the facing edge
+    var a = st.arrow;
+    a.style.left = a.style.top = a.style.right = a.style.bottom = "";
+    if (side === "below" || side === "above") a.style.left = (Math.max(14, Math.min(cx - left, cw - 14)) - 9) + "px";
+    else a.style.top = (Math.max(14, Math.min(cy - top, ch - 14)) - 9) + "px";
+  }
+
+  function tourRenderCounter(i) {
+    var dots = "";
+    for (var k = 0; k < TOUR_STEPS.length; k++)
+      dots += '<span class="tour-dot' + (k === i ? " tour-dot--on" : "") + '"></span>';
+    tourState.counter.innerHTML = '<span class="tour-dots" aria-hidden="true">' + dots + '</span>' +
+      '<span class="tour-count-num">' + (i + 1) + "/" + TOUR_STEPS.length + "</span>";
+  }
+
+  function tourMkBtn(label, cls, fn) {
+    var el = document.createElement("button");
+    el.type = "button"; el.className = cls; el.textContent = label;
+    el.addEventListener("click", fn);
+    return el;
+  }
+
+  function tourRenderButtons(i, isLast, step) {
+    var b = tourState.btns;
+    b.innerHTML = "";
+    b.appendChild(tourMkBtn("Skip tour", "tour-btn tour-btn--quiet tour-skip", tourEnd));   // always
+    if (tourPrevShown(i) !== -1) b.appendChild(tourMkBtn("Back", "tour-btn tour-btn--ghost", tourBack));  // hidden on step 1
+    if (step.center) b.appendChild(tourMkBtn("Read the full how-to", "tour-btn tour-btn--ghost", tourToHowto));
+    b.appendChild(tourMkBtn(isLast ? "Done" : "Next", "tour-btn tour-btn--primary", tourNext));
+  }
+
+  function tourShow(i) {
+    var st = tourState; if (!st) return;
+    st.i = i;
+    var step = TOUR_STEPS[i], isLast = (i === tourLastShown());
+    st.textEl.innerHTML = step.html;
+    st.card.setAttribute("aria-label",
+      "Guided tour — step " + (i + 1) + " of " + TOUR_STEPS.length + ": " + step.name);
+    tourRenderCounter(i);
+    tourRenderButtons(i, isLast, step);
+
+    if (step.center) {
+      // no spotlight: a 0×0 cutout at viewport center = a full, even dim
+      var s = st.spot;
+      s.style.left = "50%"; s.style.top = "50%"; s.style.width = "0"; s.style.height = "0";
+      s.style.borderRadius = "0";
+      st.card.className = "tour-card tour-card--center";
+      st.card.style.left = st.card.style.top = "";
+    } else {
+      var el = tourEl(step);
+      if (el && el.scrollIntoView) {   // scroll a target back on screen if needed (#rail steps)
+        var rr = el.getBoundingClientRect();
+        if (rr.top < 0 || rr.bottom > root.innerHeight) el.scrollIntoView({ block: "nearest" });
+      }
+      var rect = tourTargetRect(el, step);
+      tourPlaceSpot(rect, el);
+      tourPlaceCard(rect);
+    }
+    st.card.focus();   // focus into the card each step; the Tab trap keeps it there
+  }
+
+  function tourNext() {
+    if (!tourState) return;
+    var j = tourNextShown(tourState.i);
+    if (j === -1) { tourEnd(); return; }   // Next on the last shown step = Done
+    tourShow(j);
+  }
+  function tourBack() {
+    if (!tourState) return;
+    var j = tourPrevShown(tourState.i);
+    if (j !== -1) tourShow(j);
+  }
+  function tourToHowto() {   // step 7: end the tour (sets seen-key), open the deeper dive
+    tourEnd();
+    openDialog("howto-dialog");
+  }
+
+  function tourKeydown(e) {
+    if (!tourState) return;
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); tourEnd(); return; }
+    if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); tourNext(); return; }
+    if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); tourBack(); return; }
+    if (e.key === "Enter") {
+      var t = e.target;   // let a focused tour button fire its own click
+      if (t && t.classList && t.classList.contains("tour-btn")) return;
+      e.preventDefault(); e.stopPropagation(); tourNext(); return;
+    }
+    if (e.key === "Tab") {   // trap focus inside the card
+      var f = tourState.card.querySelectorAll("button");
+      if (!f.length) { e.preventDefault(); tourState.card.focus(); return; }
+      var first = f[0], last = f[f.length - 1], active = document.activeElement;
+      if (e.shiftKey) { if (active === first || active === tourState.card) { e.preventDefault(); last.focus(); } }
+      else { if (active === last) { e.preventDefault(); first.focus(); } }
+    }
+  }
+
+  // startTour(opts) — build the overlay and run from the first shown step. opts:
+  //   { launcher }  the element to return focus to on exit (default #field-pill).
+  function startTour(opts) {
+    opts = opts || {};
+    if (tourState) return;   // already running
+    // default Allerton framing so every target is on screen; scroll the rail to top
+    if (root.__FOCUS_MAP__ && root.__FOCUS_MAP__.reset) { try { root.__FOCUS_MAP__.reset(); } catch (e) {} }
+    var rail = document.getElementById("rail"); if (rail) rail.scrollTop = 0;
+
+    var layer = document.createElement("div"); layer.id = "tour";
+    var spot = document.createElement("div"); spot.className = "tour-spot";
+    var card = document.createElement("div");
+    card.className = "tour-card";
+    card.setAttribute("role", "dialog");
+    card.setAttribute("aria-modal", "true");
+    card.setAttribute("tabindex", "-1");
+    var arrow = document.createElement("span"); arrow.className = "tour-arrow"; arrow.setAttribute("aria-hidden", "true");
+    var text = document.createElement("p"); text.className = "tour-text"; text.setAttribute("aria-live", "polite");
+    var counter = document.createElement("div"); counter.className = "tour-counter";
+    var btns = document.createElement("div"); btns.className = "tour-btns";
+    card.appendChild(arrow); card.appendChild(text); card.appendChild(counter); card.appendChild(btns);
+    layer.appendChild(spot); layer.appendChild(card);
+    document.body.appendChild(layer);
+
+    tourState = {
+      i: 0, layer: layer, spot: spot, card: card, textEl: text, counter: counter, btns: btns, arrow: arrow,
+      returnFocus: opts.launcher || document.getElementById("field-pill"),
+      onKey: tourKeydown, onResize: function () { if (tourState) tourShow(tourState.i); }
+    };
+    document.addEventListener("keydown", tourState.onKey, true);
+    root.addEventListener("resize", tourState.onResize);
+    root.addEventListener("orientationchange", tourState.onResize);
+    tourShow(tourFirstShown());
+  }
+
+  // tourEnd — ANY exit (Done, Skip, Esc, Read-the-how-to). Sets the seen-key
+  // (timestamp) so the tour never auto-starts again, tears the overlay down,
+  // and returns focus to the launcher (or #field-pill).
+  function tourEnd() {
+    if (!tourState) return;
+    try { root.localStorage.setItem(TOUR_SEEN_KEY, String(Date.now())); } catch (e) {}
+    var st = tourState;
+    document.removeEventListener("keydown", st.onKey, true);
+    root.removeEventListener("resize", st.onResize);
+    root.removeEventListener("orientationchange", st.onResize);
+    if (st.layer && st.layer.parentNode) st.layer.parentNode.removeChild(st.layer);
+    tourState = null;
+    var rf = st.returnFocus;
+    if (rf && rf.offsetParent !== null && typeof rf.focus === "function") rf.focus();
+    else { var fp = document.getElementById("field-pill"); if (fp) fp.focus(); }
+  }
+
+  // First-visit auto-start: after the initial Allerton render settles, start the
+  // tour ONCE — guarded on (no seen-key) AND (no dialog already open) AND (no
+  // live read in progress, the honest signal being the visible #live-progress
+  // panel). If any guard fails we simply don't auto-start; the relaunch button
+  // in the how-to dialog is the always-available path.
+  function tourMaybeAutoStart() {
+    var seen; try { seen = root.localStorage.getItem(TOUR_SEEN_KEY); } catch (e) { seen = "1"; }
+    if (seen) return;
+    if (document.querySelector(".dialog.open")) return;
+    var prog = document.getElementById("live-progress");
+    if (prog && !prog.hidden) return;
+    startTour({ launcher: document.getElementById("field-pill") });
+  }
+
+  function wireTourRelaunch() {
+    var btn = document.getElementById("howto-tour-launch");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      var d = document.getElementById("howto-dialog"); if (d) closeDialog(d);
+      startTour({ launcher: document.getElementById("rail-howto") });
+    });
+  }
+
+  /* =========================================================================
    * PUBLIC API + init
    * ========================================================================= */
   var AGRIOS_FOCUS_R2 = {
+    startTour: startTour,
     registerAllertonContent: registerAllertonContent,
     LIVE_BANNER: LIVE_BANNER,
     COMPUTED_BANNER: COMPUTED_BANNER,
@@ -3540,6 +3837,15 @@
       // switcher can restore it from the read cache even with no read this
       // session. setFieldChipState checks the registry itself.
       setFieldChipState(!!_lastLiveRead, null);
+
+      // Onboarding tour (spec-onboarding-tour-v1): wire the how-to relaunch
+      // button, then — once this first Allerton render has settled (a short
+      // deferral so getBoundingClientRect returns real target boxes; no rAF loop
+      // so the scroll-sync/readout guarantees hold) — auto-start once for a
+      // first-time visitor. Any exit sets the seen-key; it never fires again.
+      wireTourRelaunch();
+      root.setTimeout(tourMaybeAutoStart, 60);
+
       return { contours: r.contours, bands: r.bands };
     }
   };
