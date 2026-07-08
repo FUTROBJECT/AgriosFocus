@@ -1620,6 +1620,8 @@
     if (pb) pb.addEventListener("click", function () { openDialog("provenance-dialog"); });
     var ab = document.getElementById("rail-about");
     if (ab) ab.addEventListener("click", function () { openDialog("about-dialog"); });
+    var ho = document.getElementById("rail-howto");
+    if (ho) ho.addEventListener("click", function () { openDialog("howto-dialog"); });
   }
 
   /* =========================================================================

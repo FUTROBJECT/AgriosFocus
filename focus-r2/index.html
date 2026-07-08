@@ -66,6 +66,9 @@
       <button id="rail-about" class="rail-nav-btn" aria-label="About AGRIOS Focus">
         <span class="rail-glyph">ⓘ</span>
       </button>
+      <button id="rail-howto" class="rail-nav-btn" aria-label="How to use">
+        <span class="rail-glyph">?</span>
+      </button>
     </div>
   </nav>
 
@@ -191,6 +194,31 @@
     <p>Every claim carries its instrument, its resolution limits, and its date. Name a field, state its bounds (your claim of record, drawn solid), and it becomes a place you can return to. The muted "not connected" tiles are honest empty sockets — soil probes, yield monitors, array telemetry light them up.</p>
     <p>Two kinds of reading, kept visibly distinct: the <strong>computed reading</strong> (geometry and printed rules, data-support counted, never invented confidence) and the <strong>analyst layer</strong> — a worked interpretation like the Allerton, Iowa example in the field switcher.</p>
     <p class="dialog-note">AGRIOS Focus · a FutureObjects instrument · public data only, read live · vanilla HTML/JS/SVG, no backend · <a href="https://futureobjects.substack.com" target="_blank" rel="noopener">futureobjects.substack.com</a></p>
+  </div>
+</div>
+
+<div id="howto-dialog" class="dialog" role="dialog" aria-modal="true" aria-labelledby="howto-title" aria-hidden="true">
+  <div class="dialog-card">
+    <button class="dialog-close" aria-label="Close">×</button>
+    <h2 id="howto-title">How to use</h2>
+    <p>AGRIOS Focus reads your ground live from public data and shows you where to look. It does not tell you what to do — the deciding stays yours. No account, no sensors in the field.</p>
+
+    <h3>1. Get a reading</h3>
+    <p>Tap the field pill at the top-left and type your latitude and longitude. Press “Read this location.” AGRIOS pulls your ground live from public sources — elevation, soils, weather, water, roads. Give it a moment.</p>
+
+    <h3>2. Read the screen</h3>
+    <p>The land fills in as cream-to-sage bands between thin contour lines — low to high ground, close lines steep, wide lines flat. Dashed outlines split it into zones. Each zone label states only facts the map can prove: its soil, its elevation band, the compass octant it faces. On each zone card, one chip points your eyes: look-first (start here), look (worth a glance), or quiet (nothing stands out). Nothing here advises — it shows you where to look.</p>
+
+    <h3>3. What the support count and ⟨?⟩ mean</h3>
+    <p>Each zone card shows DATA SUPPORT as n/4 — how many of four public sources back that read. Four is well-supported; one is thin. It is a count of evidence, never a made-up percentage. A hatched amber ⟨?⟩ band means the sources genuinely disagree there, so AGRIOS holds the question open instead of averaging them into a false answer. That is the instrument working, not failing — a spot to go check yourself.</p>
+
+    <h3>4. State your field (optional)</h3>
+    <p>Name your field, frame it in view, and choose “use current view as bounds.” Your field draws as a solid rectangle — that edge is your claim of record. Terrain beyond it goes muted, because it is context, not your field. Dim “not connected” tiles are honest empty sockets, waiting for a sensor you have not placed yet. Saved fields wait in the switcher on the field pill, kept in this browser only.</p>
+
+    <h3>5. Trust it to point, then go check</h3>
+    <p>The zone cards are the computed reading: geometry plus printed rules and the n/4 count. The baked Allerton, Iowa field is different — an analyst reading, one person’s worked interpretation, kept visibly separate so you never mistake it for the raw instrument. Either way, Focus is context-grade, not survey-grade: an instrument for looking, not a substitute for walking the ground or a licensed measurement.</p>
+
+    <p class="dialog-note">Focus sharpens where your attention goes; it does not decide for you. When it points, go look.</p>
   </div>
 </div>
 
@@ -325,7 +353,7 @@
 <script src="engine.js?v=7"></script>
 <script src="live.js?v=8"></script>
 <script src="fields.js?v=1"></script>
-<script src="focus-r2.js?v=36"></script>
+<script src="focus-r2.js?v=37"></script>
 <script>
 /* Bootstrap: build the zone cards from FOCUS_DATA into both the desktop rail
  * and the mobile sheet, wire the header + provenance dialog, then init the map.

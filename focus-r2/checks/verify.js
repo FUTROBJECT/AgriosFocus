@@ -1804,7 +1804,7 @@ ok(/@media \(pointer: coarse\)\s*\{\s*\.switcher-kbd-hint\s*\{\s*display:\s*none
 
 console.log("\n== CACHE-BUST: ?v= bumped on the touched references (css/js/engine) ==");
 ok(/focus-r2\.css\?v=34/.test(html), "focus-r2.css reference bumped to ?v=34");
-ok(/focus-r2\.js\?v=36/.test(html), "focus-r2.js reference bumped to ?v=35");
+ok(/focus-r2\.js\?v=37/.test(html), "focus-r2.js reference bumped to ?v=37 (spec-howto-v1)");
 ok(/engine\.js\?v=7/.test(html), "engine.js reference stays ?v=7 (engine UNTOUCHED for this spec)");
 ok(/live\.js\?v=8/.test(html), "live.js reference bumped to ?v=8 (surround fetch)");
 
@@ -2052,6 +2052,55 @@ ok(/phLat = \(active && active\.live && active\.read\) \? AGRIOS_FOCUS_R2\.fmtDe
 console.log("\n== DOCK: the bottom zone strip joins the dark-mode float-separation group ==");
 ok(/\.field-pill, \.view-bounds-pill, \.prov-chip, \.field-chip, \.cached-chip, \.map-popover, \.ctl, \.dock \{\s*\n\s*border: 1px solid var\(--float-border\);/.test(css), "the .dock carries the theme-aware --float-border hairline (invisible on light, visible on dark) like the other floating surfaces");
 ok(/--float-border: rgba\(244, 244, 242, 0\.18\)/.test(css) && /--float-border: rgba\(30, 30, 32, 0\)/.test(css), "--float-border stays 0-alpha on light / visible hairline on dark (unchanged) — the dock inherits both");
+
+/* -------------------------------------------------------------------------
+ * HOW-TO PANEL (spec-howto-v1). A new `?` rail control mirrors the `#about-
+ * dialog` structure exactly, opening an operational companion to the
+ * philosophical About panel. Content is verbatim — pasted from the spec, not
+ * reworded — so the honesty-gate phrase checks below are the point: they
+ * confirm the shipped copy still says what passed the honesty check, and
+ * that no invented confidence (%, "confidence") crept into the panel.
+ * ------------------------------------------------------------------------- */
+console.log("\n== HOW-TO PANEL: rail button + dialog structure (mirrors #about-dialog) ==");
+ok(/<button id="rail-howto" class="rail-nav-btn" aria-label="How to use">\s*\n\s*<span class="rail-glyph">\?<\/span>/.test(html),
+   "#rail-howto button exists with aria-label=\"How to use\" and the ? glyph");
+const railGroupHtml = (html.match(/<div class="rail-nav-group">[\s\S]*?<\/div>\s*\n\s*<\/nav>/) || [""])[0];
+ok(/id="rail-howto"/.test(railGroupHtml), "#rail-howto sits inside .rail-nav-group");
+ok(railGroupHtml.indexOf('id="rail-about"') !== -1 && railGroupHtml.indexOf('id="rail-about"') < railGroupHtml.indexOf('id="rail-howto"'),
+   "#rail-howto comes immediately after #rail-about in the rail group");
+
+ok(/id="howto-dialog" class="dialog" role="dialog" aria-modal="true" aria-labelledby="howto-title" aria-hidden="true"/.test(html),
+   "#howto-dialog exists with role=\"dialog\", aria-modal=\"true\", aria-labelledby=\"howto-title\", aria-hidden=\"true\"");
+const howtoBlock = (html.match(/<div id="howto-dialog"[\s\S]*?\n<\/div>\s*\n\s*\n<!-- Field & date/) || [""])[0];
+ok(howtoBlock.length > 0, "the #howto-dialog block is present and delimited (isolates the honesty-gate checks below to its own markup)");
+ok(/<button class="dialog-close" aria-label="Close">×<\/button>/.test(howtoBlock), "#howto-dialog carries the same .dialog-close × button as the other dialogs");
+ok(/<h2 id="howto-title">How to use<\/h2>/.test(howtoBlock), "#howto-dialog's <h2> title is exact: 'How to use'");
+
+console.log("\n== HOW-TO PANEL: wiring — rail-howto opens howto-dialog, generic close machinery covers it ==");
+ok(/var ho = document\.getElementById\("rail-howto"\);\s*\n\s*if \(ho\) ho\.addEventListener\("click", function \(\) \{ openDialog\("howto-dialog"\); \}\);/.test(js),
+   "JS wires #rail-howto click to openDialog(\"howto-dialog\") — same shape as #rail-about");
+ok(/document\.querySelectorAll\("\.dialog"\)\.forEach\(function \(d\) \{/.test(js) && /document\.querySelectorAll\("\.dialog\.open"\)\.forEach\(closeDialog\)/.test(js),
+   "wireDialogs() queries ALL .dialog elements generically (backdrop click, .dialog-close, Escape) — #howto-dialog is covered for free, no per-id close logic needed");
+
+console.log("\n== HOW-TO PANEL: verbatim copy — all 5 section headings present ==");
+["1. Get a reading", "2. Read the screen", "3. What the support count and ⟨?⟩ mean", "4. State your field (optional)", "5. Trust it to point, then go check"].forEach(h =>
+   ok(howtoBlock.indexOf("<h3>" + h + "</h3>") !== -1, "section heading present verbatim: \"" + h + "\""));
+
+console.log("\n== HOW-TO PANEL: honesty gates on the copy (the point of this feature) ==");
+[
+  "where to look",
+  "does not tell you what to do",
+  "count of evidence, never a made-up percentage",
+  "holds the question open",
+  "working, not failing",
+  "claim of record",
+  "computed reading",
+  "analyst reading",
+  "context-grade, not survey-grade"
+].forEach(phrase =>
+   ok(howtoBlock.indexOf(phrase) !== -1, "honesty-gate phrase present verbatim: \"" + phrase + "\""));
+ok(!/%/.test(howtoBlock), "no % anywhere inside #howto-dialog (data support is a count, n/4, never a percentage)");
+ok(!/confidence/i.test(howtoBlock), "no \"confidence\" claim anywhere inside #howto-dialog (no invented confidence)");
 
 /* ========================================================================= */
 console.log("\n== summary ==");
